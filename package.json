@@ -17,6 +17,6 @@
   },
   "homepage": "https://github.com/prjctr-node-course/video-service#readme",
   "dependencies": {
-    "fluent-ffmpeg": "^2.1.2"
+    "handbrake-js": "^6.0.0"
   }
 }

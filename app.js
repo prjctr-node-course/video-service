@@ -3,7 +3,7 @@ const url = require("url");
 const fs = require("fs");
 const crypto = require("crypto");
 const path = require("path");
-const ffmpeg = require("fluent-ffmpeg");
+const hbjs = require("handbrake-js");
 
 const hostname = "127.0.0.1";
 const port = 3000;
@@ -24,7 +24,11 @@ const REQUEST_METHODS = {
   delete: "DELETE",
 };
 
-const fileTypes = ["quicktime", "x-msvideo", "mp4"];
+const fileTypes = {
+  "x-msvideo": "avi",
+  quicktime: "mov",
+  mp4: ".mp4",
+};
 
 function getUUID() {
   return crypto.randomBytes(16).toString("hex");
@@ -66,23 +70,42 @@ const server = http.createServer((req, res) => {
   const pathname = url.parse(req.url, false).pathname;
   const method = req.method;
 
-  const fileName = `${Date.now()}${getUUID()}.mp4`;
+  const fileType = getFileType(req.headers["content-type"]);
+  const fileHash = `${Date.now()}${getUUID()}`;
+  const fileName = `${fileHash}.${fileTypes[fileType]}`;
   const filePath = path.join(__dirname, fileName);
   const videoFile = fs.createWriteStream(filePath);
 
-  console.log(req.headers["content-type"]);
+  const isFileTypeAllowed = Object.keys(fileTypes).includes(fileType);
 
-  const fileType = getFileType(req.headers["content-type"]);
-  const isFileTypeAllowed = fileTypes.includes(fileType);
-
-  if (method === REQUEST_METHODS.post) {
+  function convertAndDeleteVideo() {
     const resolvedDetails = resolveRoutes(pathname);
 
-    if (isFileTypeAllowed) {
-      req.pipe(videoFile).on("finish", () => {
+    hbjs
+      .spawn({
+        input: fileName,
+        output: `${fileHash}.mp4`,
+      })
+      .on("end", () => {
+        fs.unlink(filePath, (err) => {
+          if (err) throw err;
+
+          console.log("File deleted!");
+        });
+
         res.statusCode = resolvedDetails.code;
         res.end(resolvedDetails.response);
       });
+  }
+
+  function handleFileDownload() {
+    req.pipe(videoFile);
+  }
+
+  if (method === REQUEST_METHODS.post) {
+    if (isFileTypeAllowed) {
+      handleFileDownload();
+      convertAndDeleteVideo();
     } else {
       res.statusCode = 422;
       res.end("Unprocessable Entity");
