@@ -107,9 +107,12 @@ const server = http.createServer((req, res) => {
       handleFileDownload();
       convertAndDeleteVideo();
     } else {
-      res.statusCode = 422;
-      res.end("Unprocessable Entity");
+      res.statusCode = 415;
+      res.end("Unsupported Media Type");
     }
+  } else {
+    res.statusCode = 405;
+    res.end("Method Not Allowed");
   }
 });
 
