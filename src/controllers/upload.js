@@ -1,5 +1,3 @@
-const hbjs = require('handbrake-js');
-const fs = require('fs');
 const path = require('path');
 
 const {
@@ -7,68 +5,31 @@ const {
   getContentType,
   getFileType,
   getUUID,
-} = require('../utils/file-helper');
+} = require('../utils/fileHelper');
+const {
+  convertAndDeleteVideo,
+  handleFileDownload,
+} = require('../services/workers');
 const { statusCodes, fileTypes } = require('../consts/consts');
-
-function removeFile(filePath) {
-  fs.unlink(filePath, (err) => {
-    if (err) throw err;
-
-    console.log('File deleted!');
-  });
-}
-
-async function convertAndDeleteVideo(ctx, fileDetails) {
-  return new Promise((resolve, reject) => {
-    hbjs
-      .spawn({
-        input: `${fileDetails.filePath}`,
-        output: `../output-files/${fileDetails.fileHash}.mp4`,
-      })
-      .on('error', () => {
-        removeFile(fileDetails.filePath);
-        reject();
-      })
-      .on('end', () => {
-        removeFile(fileDetails.filePath);
-
-        ctx.status = statusCodes.success;
-        ctx.body = 'File uploaded';
-        resolve();
-      });
-  });
-}
-
-async function handleFileDownload(req, filePath) {
-  const videoFile = fs.createWriteStream(filePath);
-
-  await new Promise((resolve, reject) => {
-    req
-      .pipe(videoFile)
-      .on('error', (error) => {
-        reject(error);
-      })
-      .on('finish', () => {
-        resolve();
-      });
-  });
-}
 
 const postUpload = async (ctx) => {
   const contentType = getContentType(ctx.request.header);
   const fileType = getFileType(contentType);
   const fileHash = `${Date.now()}${getUUID()}`;
   const fileName = `${fileHash}.${fileTypes[fileType]}`;
-  const filePath = path.join(`${__dirname}../../../input-files/`, fileName);
+  const filePath = path.join(`${__dirname}../../../inputFiles/`, fileName);
+  const outputPath = path.join(`${__dirname}../../../outputFiles/${fileHash}`);
   const fileDetails = {
     fileName,
-    fileHash,
     filePath,
+    outputPath,
   };
 
   if (!isUploadAllowed(contentType)) {
-    ctx.status = statusCodes.unsupportedMedia;
-    ctx.body = 'Unsupported Media Type';
+    return {
+      code: statusCodes.unsupportedMedia,
+      message: 'Unsupported Media Type',
+    };
   }
 
   try {
@@ -78,7 +39,7 @@ const postUpload = async (ctx) => {
   }
 
   try {
-    await convertAndDeleteVideo(ctx, fileDetails);
+    return await convertAndDeleteVideo(fileDetails);
   } catch (error) {
     throw error;
   }

@@ -6,7 +6,14 @@ const uploadController = require('../../controllers/upload');
 const router = new Router();
 
 router.post(routes.uploadRoutes.upload, async (ctx, next) => {
-  await uploadController.postUpload(ctx);
+  try {
+    const { code, message } = await uploadController.postUpload(ctx);
+
+    ctx.status = code;
+    ctx.body = message;
+  } catch (error) {
+    console.log(error);
+  }
 
   await next();
 });
